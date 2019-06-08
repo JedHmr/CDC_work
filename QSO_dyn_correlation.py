@@ -11,7 +11,7 @@ from astropy.coordinates import match_coordinates_sky
 #os.path.abspath(os.curdir)
 #os.chdir("..")
 
-path_DR7 = 'data\DR7Q.fit'
+path_DR7 = 'data/DR7Q.fit'
 t_DR7 = Table.read(path_DR7)
 path_DR7Q = 'data/DR7QSOdata.fits'
 t_DR7Q = Table.read(path_DR7Q)  # same table as DR7 for some reason?
@@ -49,11 +49,12 @@ cs_3XMMb, c_errs_3XMMb = coords_DR12[d2d_3XMM2 < k*u.arcsec], dpos1[idx_3XMM2[[d
 cs1, c_errs1 = coords_3XMM[idx_3XMM1[d2d_3XMM1 < k*u.arcsec]], dpos1[idx_3XMM1[[d2d_3XMM1 < k*u.arcsec]]]
 cs2, c_errs2 = coords_3XMM[idx_3XMM2[d2d_3XMM2 < k*u.arcsec]], dpos1[idx_3XMM2[[d2d_3XMM2 < k*u.arcsec]]]
 
+# 3XMM catalog matched object coordinates
 XMMa_matches = []
 XMMa_matches_poserr = []
 XMMb_matches = []
 XMMb_matches_poserr = []
-
+# DR7/DR12 catalog matched object coordinates 
 DR7_matches = []
 DR7_matches_poserr = []
 DR12_matches = []
@@ -145,3 +146,56 @@ for a,b in zip(XMMa_matches,DR7_matches):
     diff.append(a.separation(b))
 
 print(count1,count2,count3,count4)
+
+#%% Aitoff projection
+import matplotlib.pyplot as plt
+from astropy import units as u
+from astropy.coordinates import SkyCoord
+from astropy.table import Table
+from astropy.coordinates import match_coordinates_sky
+
+
+path_3XMM = 'data/3XMM_DR7cat.fits'
+t_3XMM = Table.read(path_3XMM)
+path_DR7 = 'data/DR7Q.fit'
+t_DR7 = Table.read(path_DR7)
+path_DR7Q = 'data/DR7QSOdata.fits'
+t_DR7Q = Table.read(path_DR7Q)  # same table as DR7 for some reason?
+path_DR12 = 'data/DR12Q.fits'
+t_DR12 = Table.read(path_DR12)
+
+coords_DR7 = SkyCoord(t_DR7['RA']*u.deg, t_DR7['DEC']*u.deg)
+coords_DR12 = SkyCoord(t_DR12['RA'], t_DR12['DEC'])
+coords_3XMM = SkyCoord(t_3XMM['SC_RA'], t_3XMM['SC_DEC'])
+
+ra_rad1 = cs1.ra.wrap_at(180 * u.deg).radian
+dec_rad1 =  cs1.ra.dec.radian
+ra_rad2 = cs2.ra.wrap_at(180 * u.deg).radian
+dec_rad2 =  cs2.ra.dec.radian
+
+#ra_rad1 = coords_3XMM.ra.wrap_at(180*u.deg).radian
+#dec_rad1 = coords_3XMM.ra.wrap_at(180*u.deg).radian
+#ra_rad2 = coords_DR7.ra.wrap_at(180*u.deg).radian
+#dec_rad2 = coords_DR7.ra.wrap_at(180*u.deg).radian
+#ra_rad3 = coords_DR12.ra.wrap_at(180*u.deg).radian
+#dec_rad3 = coords_DR12.ra.wrap_at(180*u.deg).radian
+
+plt.figure(figsize=(8,4.2))
+plt.subplot(111, projection="aitoff")
+plt.title("Aitoff")
+plt.grid(True)
+plt.plot(ra_rad1,dec_rad1, 'ro', markersize=2, alpha=0.3)
+plt.plot(ra_rad2,dec_rad2, 'bo', markersize=2, alpha=0.3)
+#plt.plot(ra_rad3,dec_rad3, 'bo', markersize=2, alpha=0.3)
+plt.subplots_adjust(top=0.95,bottom=0.0)
+plt.show()
+
+
+
+#%%
+
+# potentially require SkyCoord objects for back indexing into catalogs (tables). 
+# then can catalog match back to find fluxes etc. in catalohs.
+
+DR7_matches = SkyCoord(DR7_matches)
+
