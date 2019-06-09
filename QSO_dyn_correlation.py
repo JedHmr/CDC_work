@@ -97,6 +97,7 @@ for c, c_err in np.column_stack((cs1, c_errs1)):
     print(cs1[idxcatalog1], c_errs1[idxcatalog1])
     print(len(DR7_matches))
     
+
 for c, c_err in np.column_stack((cs2, c_errs2)):
 
     # find separations less than quadrature error on that object
@@ -119,23 +120,28 @@ DR7_matches_poserr = np.concatenate([DR7_matches_poserr])
 DR12_matches = np.concatenate(DR12_matches)
 DR12_matches_poserr = np.concatenate([DR12_matches_poserr])
 
+DR7_matches, DR7_matches_poserr = radius_match(cs1,c_errs1)
+DR7_matches, DR7_matches_poserr = radius_match(cs1,c_errs1)
+
+DR7_matches, DR7_matches_poserr = radius_match(cs1,c_errs1)
+DR7_matches, DR7_matches_poserr = radius_match(cs1,c_errs1)
+
+# radius of error to filter in arcsec
 rad = 1.5
 
 count1 = 0
+
 for obj in XMMa_matches_poserr:
     if obj < rad:
         count1 += 1
-
 count2 = 0
 for obj in XMMb_matches_poserr:
     if obj < rad:
         count2 += 1
-
 count3 = 0
 for obj in DR7_matches_poserr:
     if obj < rad:
         count3 += 1
-
 count4 = 0
 for obj in DR12_matches_poserr:
     if obj < rad:
@@ -153,7 +159,6 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
 from astropy.coordinates import match_coordinates_sky
-
 
 path_3XMM = 'data/3XMM_DR7cat.fits'
 t_3XMM = Table.read(path_3XMM)
@@ -189,8 +194,6 @@ plt.plot(ra_rad2,dec_rad2, 'bo', markersize=2, alpha=0.3)
 #plt.plot(ra_rad3,dec_rad3, 'bo', markersize=2, alpha=0.3)
 plt.subplots_adjust(top=0.95,bottom=0.0)
 plt.show()
-
-
 
 #%%
 

@@ -33,19 +33,14 @@ x = r*sin(phi)*cos(theta)
 y = r*sin(phi)*sin(theta)
 z = r*cos(phi)
 
+# func for spherical coords of catalogs
+def coords_to_sphericals(coords):
+    theta, phi = coords.ra.rad, coords.dec.rad
+    xx = np.sin(phi)*np.cos(theta)
+    yy = np.sin(phi)*np.sin(theta)
+    zz = np.cos(phi)
 
-theta, phi = coords_3XMM.ra.rad, coords_3XMM.dec.rad
-x1 = sin(phi)*cos(theta)
-y1 = sin(phi)*sin(theta)
-z1 = cos(phi)   
-theta, phi = coords_DR7.ra.rad, coords_DR7.dec.rad
-x2 = sin(phi)*cos(theta)
-y2 = sin(phi)*sin(theta)
-z2 = cos(phi)   
-theta, phi = coords_DR12.ra.rad, coords_DR12.dec.rad
-x3 = sin(phi)*cos(theta)
-y3 = sin(phi)*sin(theta)
-z3 = cos(phi)   
+    return xx,yy,zz
 
 #Set colours and render
 fig = plt.figure()
@@ -53,6 +48,10 @@ ax = fig.add_subplot(111, projection='3d')
 
 ax.plot_surface(
     x, y, z,  rstride=1, cstride=1, color='dimgray', alpha=0.3, linewidth=0)
+
+x1,y1,z1 = coords_to_sphericals(coords_3XMM)
+x2,y2,z2 = coords_to_sphericals(coords_DR7)
+x3,y3,z3 = coords_to_sphericals(coords_DR12)
 
 ax.scatter(x1,y1,z1,color="plum",s=0.001)
 ax.scatter(x2,y2,z2,color="lightsteelblue",s=0.05)
@@ -63,6 +62,5 @@ ax.set_ylim([-1,1])
 ax.set_zlim([-1,1])
 ax.axis('off')
 ax.set_facecolor('darkgrey')
-#ax.set_aspect("equal")
 plt.tight_layout()
 plt.show()
