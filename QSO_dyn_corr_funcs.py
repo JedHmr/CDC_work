@@ -130,36 +130,76 @@ FX_hard_err_DR12 = t_3XMM_DR12_matches['SC_EP_4_FLUX_ERR'] + t_3XMM_DR12_matches
 
 #%% UV FLUX
 
+# SFD (1998) extinction map --> galactic extinction
+m = sfdmap.SFDMap('C:/Users/jedhm/Documents/Projects/CDC_work/data/sfd_data')
+
+R_v = 3.1
+
 # DR7 UV
 UV_DR7 = t_DR7_DR7_matches['LOGFNU2500A_ERGS_OBS']
 z_DR7 = t_DR7_DR7_matches['REDSHIFT']
 
-# DR12 UV
+ext_DR7 = R_v*m.ebv(coords_DR7) # R_v*E(B-V) = A_v
 
+# DR12 UV
 # redshifts 'z' 
 z_DR12 =  t_DR12_DR12_matches['Z_CIV']
 
 # magnitudes (DR12: (Vega, 2MASS) for mags J,H,K) --> Filter by SNR?
 J, H, K = t_DR12_DR12_matches['JMAG'], t_DR12_DR12_matches['HMAG'], t_DR12_DR12_matches['KMAG']
 Jerr, Herr, Kerr = t_DR12_DR12_matches['ERR_JMAG'], t_DR12_DR12_matches['ERR_HMAG'], t_DR12_DR12_matches['ERR_KMAG']
+
 # coord targets
 coords_DR7 = SkyCoord(t_DR7_DR7_matches['RA']*u.deg, t_DR7_DR7_matches['DEC']*u.deg)
 coords_DR12 = SkyCoord(t_DR12_DR12_matches['RA'], t_DR12_DR12_matches['DEC'])
 
-# query IPAC for object-extinctions
-#t_ext_DR7 = IrsaDust.get_extinction_table(coords_DR7)
-#t_ext_DR12 = IrsaDust.get_extinction_table(coords_DR12)
+# objectwise galactic extinction (average with matched 3XMM coords?)
+
+ext_DR12 = R_v*m.ebv(coords_DR12) # R_v*E(B-V) = A_v
+
+# add extinction to object mags
+J, H, K = J + ext_DR12, H + ext_DR12, K + ext_DR12
+
+# eff. freqs 
+Jfreq, Hfreq, Kfreq = 4.16e-18, 5.44e-15, 7.34e-15
 
 
-# z histogram
-plt.figure()
-plt.hist(z_DR12,histtype='step')
-plt.hist(z_DR7,histtype='step')
-plt.show()
+def mag_to_flux(mags_SDSS):
+    """
+        asinh() mags to flux density for given SDSS band magnitude
+        i.e. SDSS ugriz mags --> AB mags --> flux density
+        
+        f_0: conventional magnitude = 0 amount of flux
+        b: softening factor
+        
+        ***Returns flux in Jy***
+    """
+    
+    #softening factors 'band' : (softening factor,zero-flux mag.)
+    filters = {
+            'u' : (1,1.4e-10,24.63,0.04),
+            'g' : (2,0.9e-10,25.11,0),
+            'r' : (3,1.2e-10,24.80,0),
+            'i' : (4,1.8e-10,24.36,0),
+            'z' : (5,7.4e-10,22.83,0.02)
+            }
 
-m = sfdmap.SFDMap('C:/Users/jedhm/Documents/Projects/CDC_work/data/sfd_data')
 
-ext_DR7 = m.ebv(coords_DR7)
-ext_DR12 = m.ebv(coords_DR12)
- 
+    def F_F0(mags,key):
+        return np.sinh(((np.log(10)*mags)/(-2.5) - np.log(filters[key][1])))
+    
+    S_AB = np.zeros_like(t_DR12_DR12_matches['PSFMAG'])
+    
+    for key in filters.keys():
+        for i in range(0,np.shape(mags_SDSS)[1]):
+            mags_SDSS[:,i] = mags_SDSS[:,i] - filters[key][3]
+            S_AB[:,i] = 3631*F_F0(mags_SDSS[:,i], key)
+    
+
+    #u_SDSS = mags_SDSS[:,filters[1]]
+    
+    #S = 3631*f_f0
+
+    return S_AB
 #%%
+
