@@ -285,7 +285,7 @@ for i in range(0,4):
 def freqs_fluxes_match(freqs, fluxes):
     
     # initialise for freq of band, object flux in band pairings
-    flux_freqs_paired = np.zeros((len(flux_DR12_ugriz), 2,len(ugriz_freqs)))
+    flux_freqs_paired = np.zeros((len(fluxes), 2,len(freqs)))
     
     def freq_flux_attach(freq, flux_col): 
         # match freq band value to each band flux
@@ -304,15 +304,9 @@ def freqs_fluxes_match(freqs, fluxes):
     return flux_freqs_paired
 
 
-
-#zip(freqs,np.hsplit(fluxes,np.shape(fluxes)[1]))
-
-
-# freqs_fluxs_ugriz_u = freq_flux_attach(ugriz_freqs[0],flux_DR12_ugriz[:,i])
-# freq_flux_YJHK = np.column_stack((np.repeat(YJHK_freqs[i],len(flux_DR12_ugriz)),
-#                                    flux_DR12_YJHK[:,i]))
-
-
+f_flux_ugriz = freqs_fluxes_match(ugriz_freqs, flux_DR12_ugriz)
+f_flux_YJHK = freqs_fluxes_match(YJHK_freqs, flux_DR12_YJHK)
+f_flux_WISE = freqs_fluxes_match(WISE_freqs, flux_DR12_WISE)
     
 #%%
 
