@@ -164,14 +164,6 @@ WISE_mags = [t_DR12_DR12_matches['W{}MAG'.format(i)] - ext_DR12 for i in range(1
 WISE_mags = WISE_mags - (np.array([ext_DR12]))
 WISE_mags = np.array(WISE_mags).transpose()
 
-# def WISE_magvega_to_flux(mags):
-#     # zero mag. flux densities for bands
-#     # http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec4_4h.html
-#     f_0s = {
-#             'w1': 
-#             }
-#     return
-
 
 def mag_to_flux(mags, mag_type):
     """
@@ -250,21 +242,21 @@ def mag_to_flux(mags, mag_type):
         
         return S_AB, WISE_freqs
         
-flux_DR12_ugriz, ugriz_freqs = mag_to_flux(ugriz_mags2,'ugriz') 
-flux_DR12_WISE, WISE_freqs = mag_to_flux(WISE_mags,'WISE')
-YJHK_freqs = mag_to_flux(0,'YJHK')
-
 # Y,J,K,H DR12 flux, filter by SNR? 
-fY, fJ = t_DR12_DR12_matches['YFLUX']-, t_DR12_DR12_matches['JFLUX']
+fY, fJ = t_DR12_DR12_matches['YFLUX'], t_DR12_DR12_matches['JFLUX']
 fH, fK = t_DR12_DR12_matches['HFLUX'], t_DR12_DR12_matches['KFLUX']
 
 fY_err, fJ_err = t_DR12_DR12_matches['YFLUX_ERR'], t_DR12_DR12_matches['JFLUX_ERR'] 
 fH_err, fK_err = t_DR12_DR12_matches['HFLUX_ERR'], t_DR12_DR12_matches['KFLUX_ERR'] 
+    
+flux_DR12_ugriz, ugriz_freqs = mag_to_flux(ugriz_mags2,'ugriz') 
+flux_DR12_WISE, WISE_freqs = mag_to_flux(WISE_mags,'WISE')
+flux_DR12_YJHK, YJHK_freqs = np.concatenate(np.concatenate(((fY,fJ,fH),fK))), mag_to_flux(0,'YJHK')
 
+# Angstroms, direct from tables.
 ugriz_Ang = np.array([3540, 4750, 6220, 7630, 9050])
 WISE_Ang = np.array([34000, 46000, 120000, 220000])
 YJHK_Ang = np.array([10310, 12480, 16310, 22010])
-
 
 # EXTINCTION FOR EFFECTIVE FREQS (NOTE EXTINCTION USES WAVELENGTHS in Ang)
 # Fitzpatrick & Massa (2007) function has a fixed RV of 3.1 (R&L use RV=3.1) 
@@ -272,6 +264,26 @@ YJHK_Ang = np.array([10310, 12480, 16310, 22010])
 YJHK_ext = extinction.fm07(YJHK_Ang, 1.0)
 ugriz_ext = extinction.fm07(ugriz_Ang, 1.0)
 WISE_ext = extinction.fm07(WISE_Ang, 1.0)
+
+# apply extinction to fluxes
+flux_DR12_ugriz = extinction.apply(ugriz_ext,flux_DR12_ugriz)
+flux_DR12_WISE = extinction.apply(WISE_ext,flux_DR12_WISE)
+flux_DR12_YJHK = np.zeros((len(flux_DR12_ugriz),4))
+for i in range(0,4):
+    for key in {'fY':fY,'fJ':fJ,'fH':fH,'fK':fK}.keys():
+        flux_DR12_YJHK[:,i] = extinction.apply(YJHK_ext[i],{'fY':fY,'fJ':fJ,'fH':fH,'fK':fK}[key])
+
+effective_freqs = np.concatenate((ugriz_freqs,WISE_freqs,YJHK_freqs))
+
+fig, ax = plt.subplots()
+for i in range(0,4):
+    ax.plot(ugriz_freqs[i], flux_DR12_ugriz[:,i])
+for j in range(0,3):
+    ax.plot(WISE_freqs[j], flux_DR12_WISE[:,i])
+    ax.plot(YJHK_freqs[j], flux_DR12_YJHK[:,i])
+plt.show()
+
+
 
 
     
