@@ -273,17 +273,44 @@ for i in range(0,4):
     for key in {'fY':fY,'fJ':fJ,'fH':fH,'fK':fK}.keys():
         flux_DR12_YJHK[:,i] = extinction.apply(YJHK_ext[i],{'fY':fY,'fJ':fJ,'fH':fH,'fK':fK}[key])
 
-effective_freqs = np.concatenate((ugriz_freqs,WISE_freqs,YJHK_freqs))
-
-fig, ax = plt.subplots()
-for i in range(0,4):
-    ax.plot(ugriz_freqs[i], flux_DR12_ugriz[:,i])
-for j in range(0,3):
-    ax.plot(WISE_freqs[j], flux_DR12_WISE[:,i])
-    ax.plot(YJHK_freqs[j], flux_DR12_YJHK[:,i])
-plt.show()
+# fig, ax = plt.subplots()
+# for i in range(0,4):
+#     ax.scatter(ugriz_freqs[i], flux_DR12_ugriz[:,i])
+# for j in range(0,3):
+#     ax.scatter(WISE_freqs[j], flux_DR12_WISE[:,i])
+#     ax.scatter(YJHK_freqs[j], flux_DR12_YJHK[:,i])
+# plt.show()
 
 
+def freqs_fluxes_match(freqs, fluxes):
+    
+    # initialise for freq of band, object flux in band pairings
+    flux_freqs_paired = np.zeros((len(flux_DR12_ugriz), 2,len(ugriz_freqs)))
+    
+    def freq_flux_attach(freq, flux_col): 
+        # match freq band value to each band flux
+        freq_column_vec = np.zeros((len(flux_col),1))
+        freq_column_vec[:,0] = freq
+        return np.column_stack((freq_column_vec, flux_col))
+    
+    # matched flux_columns and freqs (Fv,v)
+    flux_cols = np.hsplit(fluxes,np.shape(fluxes)[1])
+    
+    # make each slice of freq,flux match for each freq val
+    for freq, flux_col in zip(freqs, flux_cols):
+        for i in range(0,len(freqs)):
+            flux_freqs_paired[:,:,i] = freq_flux_attach(freq,flux_col)
+    
+    return flux_freqs_paired
+
+
+
+#zip(freqs,np.hsplit(fluxes,np.shape(fluxes)[1]))
+
+
+# freqs_fluxs_ugriz_u = freq_flux_attach(ugriz_freqs[0],flux_DR12_ugriz[:,i])
+# freq_flux_YJHK = np.column_stack((np.repeat(YJHK_freqs[i],len(flux_DR12_ugriz)),
+#                                    flux_DR12_YJHK[:,i]))
 
 
     
