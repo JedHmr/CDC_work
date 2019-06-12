@@ -5,6 +5,7 @@ import numpy as np
 
 # https://github.com/kbarbary/sfdmap
 import sfdmap
+import extinction
 
 from matplotlib import pyplot as plt
 from matplotlib import cm, colors
@@ -19,6 +20,8 @@ from astroquery.irsa_dust import IrsaDust
 
 os.path.abspath(os.curdir)
 os.chdir("..")
+
+c = 3e8
 
 path_DR7 = 'data/DR7Q.fit'
 t_DR7 = Table.read(path_DR7)
@@ -186,7 +189,7 @@ def mag_to_flux(mags, mag_type):
     # SDSS MAGS
     if mag_type == 'ugriz':
         # u,g,r,i,z freqs
-        ugriz_freqs = [c/354e-9, c/475e-9, c/622e-9, c/763e-9, c/905e-9]
+        ugriz_freqs = np.array([c/354e-9, c/475e-9, c/622e-9, c/763e-9, c/905e-9])
         
         #softening factors 'band' : (softening factor,zero-flux mag.)
         filters = {
@@ -207,21 +210,23 @@ def mag_to_flux(mags, mag_type):
         # each mags col has its own SDSS->AB conversion
         for key in filters.keys():
             for i in range(0, np.shape(mags)[1]):
+                # https://www.sdss.org/dr12/algorithms/fluxcal/
                 mags[:,i] = mags[:,i] - filters[key][3]
-                S_AB[:,i] = 3631*F_F0_ugriz(mags[:,i], key)
+                S_AB[:,i] = 10**(-26)*3631*F_F0_ugriz(mags[:,i], key)
     
         return S_AB, ugriz_freqs
     
     # YJHK 2MASS MAGS
     elif mag_type == 'YJHK':
         # assuming no asinh->AB mag correction
-        JHKY_freqs = [4.16e-18, 5.44e-15, 7.34e-15]
-        print('USING UKIDSS YJHK FLUXES')
+        YJHK_freq = np.array([c/1031e-9, c/1248e-9, c/1631e-9, c/2201e-9])
+        
+        return YJHK_freq
     
     # WISE MAGS    
     elif mag_type == 'WISE':
         # assuming WISE is AB mags
-        WISE_freqs = c/3.4e-6, c/4.6e-6, c/12e-6, c/22e-6
+        WISE_freqs = np.array([c/3.4e-6, c/4.6e-6, c/12e-6, c/22e-6])
         # flux zero points
         fw1,fw2,fw3,fw4 = 309.540,171.787,31.674,8.363
     
@@ -233,8 +238,8 @@ def mag_to_flux(mags, mag_type):
                        }
     
         def S_WISE(mags,key):
-            # Janksy flux
-            return zero_points[str(key)]*10**(mags/-2.5)
+            # Janksy flux * 10^-26 = Wm^-2Hz^-1
+            return 10**(-26)*zero_points[str(key)]*10**(mags/-2.5)
         
         # space for flux
         S_AB = np.zeros_like(mags)
@@ -247,7 +252,8 @@ def mag_to_flux(mags, mag_type):
         
 flux_DR12_ugriz, ugriz_freqs = mag_to_flux(ugriz_mags2,'ugriz') 
 flux_DR12_WISE, WISE_freqs = mag_to_flux(WISE_mags,'WISE')
-    
+YJHK_freqs = mag_to_flux(0,'YJHK')
+
 # Y,J,K,H DR12 flux, filter by SNR? 
 fY, fJ = t_DR12_DR12_matches['YFLUX']-, t_DR12_DR12_matches['JFLUX']
 fH, fK = t_DR12_DR12_matches['HFLUX'], t_DR12_DR12_matches['KFLUX']
@@ -255,11 +261,19 @@ fH, fK = t_DR12_DR12_matches['HFLUX'], t_DR12_DR12_matches['KFLUX']
 fY_err, fJ_err = t_DR12_DR12_matches['YFLUX_ERR'], t_DR12_DR12_matches['JFLUX_ERR'] 
 fH_err, fK_err = t_DR12_DR12_matches['HFLUX_ERR'], t_DR12_DR12_matches['KFLUX_ERR'] 
 
-# eff. freqs MATCHING UKIDSS YJHK FLUX
-YJHK_freq = (1/c)*[1031e-9, 1248e-9, 1631e-9, 2201e-9]
-    
-    
-    
+ugriz_Ang = np.array([3540, 4750, 6220, 7630, 9050])
+WISE_Ang = np.array([34000, 46000, 120000, 220000])
+YJHK_Ang = np.array([10310, 12480, 16310, 22010])
+
+
+# EXTINCTION FOR EFFECTIVE FREQS (NOTE EXTINCTION USES WAVELENGTHS in Ang)
+# Fitzpatrick & Massa (2007) function has a fixed RV of 3.1 (R&L use RV=3.1) 
+# AV set as 1.
+YJHK_ext = extinction.fm07(YJHK_Ang, 1.0)
+ugriz_ext = extinction.fm07(ugriz_Ang, 1.0)
+WISE_ext = extinction.fm07(WISE_Ang, 1.0)
+
+
     
 #%%
 
