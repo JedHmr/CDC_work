@@ -1,4 +1,4 @@
-# %% initialíí
+# %% initial
 
 import os
 import numpy as np
@@ -99,7 +99,7 @@ DR12_coords_init, DR12_coords_errs_init, XMMb_coords_init, XMMb_coords_errs_init
 DR7_matches, DR7_matches_poserr, XMM_DR7_idx_matches = radius_match(DR7_coords_init, DR7_coords_errs_init, cat_maskDR7)
 DR12_matches, DR12_matches_poserr, XMM_DR12_idx_matches = radius_match(DR12_coords_init, DR12_coords_errs_init, cat_maskDR12)
 
-# %% matches to tables back matching
+# %% matches to tables + back matching
 
 # any point in having coordinates????? just use indexes out of functions ?
 
@@ -114,6 +114,7 @@ t_DR12_DR12_matches = t_DR12[t_DR12['RA'] == coords_DR12.ra.deg]
 print('Quasars: ', len(t_3XMM_DR7_matches) + len(t_3XMM_DR12_matches))
 
 # %% XRAY FLUX 
+
 #DR7,DR12 objs with 3XMM xray measures
 FX_soft_DR7 = t_3XMM_DR7_matches['SC_EP_2_FLUX'] + t_3XMM_DR7_matches['SC_EP_3_FLUX']
 FX_soft_err_DR7 = t_3XMM_DR7_matches['SC_EP_2_FLUX_ERR'] + t_3XMM_DR7_matches['SC_EP_3_FLUX_ERR']
@@ -127,8 +128,11 @@ FX_soft_err_DR12 = t_3XMM_DR12_matches['SC_EP_2_FLUX_ERR'] + t_3XMM_DR12_matches
 FX_hard_DR12 = t_3XMM_DR12_matches['SC_EP_4_FLUX'] + t_3XMM_DR12_matches['SC_EP_5_FLUX']
 FX_hard_err_DR12 = t_3XMM_DR12_matches['SC_EP_4_FLUX_ERR'] + t_3XMM_DR12_matches['SC_EP_5_FLUX_ERR']
 
-
 #%% UV FLUX
+
+# coord targets (refreshed)
+coords_DR7 = SkyCoord(t_DR7_DR7_matches['RA']*u.deg, t_DR7_DR7_matches['DEC']*u.deg)
+coords_DR12 = SkyCoord(t_DR12_DR12_matches['RA'], t_DR12_DR12_matches['DEC'])
 
 # SFD (1998) extinction map --> galactic extinction
 m = sfdmap.SFDMap('C:/Users/jedhm/Documents/Projects/CDC_work/data/sfd_data')
@@ -148,27 +152,25 @@ ext_DR12 = R_v*m.ebv(coords_DR12) # R_v*E(B-V) = A_v
 z_DR12 = t_DR12_DR12_matches['Z_CIV']
 
 # Y,J,K,H DR12 flux, filter by SNR?
-fY, fJ = t_DR12_DR12_matches['YFLUX'], t_DR12_DR12_matches['JFLUX']
-fH, fK = t_DR12_DR12_matches['HFLUX'], t_DR12_DR12_matches['KFLUX']
+fY, fJ = t_DR12_DR12_matches['YMAG'], t_DR12_DR12_matches['JMAG']
+fH, fK = t_DR12_DR12_matches['HMAG'], t_DR12_DR12_matches['KMAG']
 
-fY_err, fJ_err = t_DR12_DR12_matches['ERR_YFLUX'], t_DR12_DR12_matches['ERR_JFLUX'] 
-fH_err, fK_err = t_DR12_DR12_matches['ERR_HFLUX'], t_DR12_DR12_matches['ERR_KFLUX'] 
+fY_err, fJ_err = t_DR12_DR12_matches['YFLUX_ERR'], t_DR12_DR12_matches['JFLUX_ERR'] 
+fH_err, fK_err = t_DR12_DR12_matches['HFLUX_ERR'], t_DR12_DR12_matches['KFLUX_ERR'] 
 
 # eff. freqs 
 Jfreq, Hfreq, Kfreq = 4.16e-18, 5.44e-15, 7.34e-15
 
-# coord targets
-coords_DR7 = SkyCoord(t_DR7_DR7_matches['RA']*u.deg, t_DR7_DR7_matches['DEC']*u.deg)
-coords_DR12 = SkyCoord(t_DR12_DR12_matches['RA'], t_DR12_DR12_matches['DEC'])
-
 # add extinction to object mags CONVERT TO FLUXES ?
-J, H, K = J + ext_DR12, H + ext_DR12, K + ext_DR12
+#J, H, K = J + ext_DR12, H + ext_DR12, K + ext_DR12
 
+# ugriz DR12 mags minus columnwise extinction (v-band)
+PSF_mag = t_DR12_DR12_matches['PSFMAG'] - (np.array([ext_DR12]*5)).transpose()
 
-
-
-def mag_to_flux(mags_SDSS, mag_type):
+def mag_to_flux(mags, mag_type):
     """
+        ugriz or YJHK type magnitudes
+        
         asinh() mags to flux density for given SDSS band magnitude
         i.e. SDSS ugriz mags --> AB mags --> flux density
         
@@ -177,7 +179,8 @@ def mag_to_flux(mags_SDSS, mag_type):
         
         ***Returns flux in Jy***
     """
-
+    
+    # SDSS MAGS
     if mag_type == 'ugriz':
         #softening factors 'band' : (softening factor,zero-flux mag.)
         filters = {
@@ -189,22 +192,64 @@ def mag_to_flux(mags_SDSS, mag_type):
                 }
     
         # function for asinh mag to f/f_0 (fraction of AB zeropoint flux density)
-        def F_F0(mags,key):
+        def F_F0_ugriz(mags,key):
             return np.sinh(((np.log(10)*mags)/(-2.5) - np.log(filters[key][1])))
         
         # space for flux
-        S_AB = np.zeros_like(t_DR12_DR12_matches['PSFMAG'])
+        S_AB = np.zeros_like(mags)
         
         # each mags col has its own SDSS->AB conversion
         for key in filters.keys():
-            for i in range(0,np.shape(mags_SDSS)[1]):
-                mags_SDSS[:,i] = mags_SDSS[:,i] - filters[key][3]
-                S_AB[:,i] = 3631*F_F0(mags_SDSS[:,i], key)
+            for i in range(0, np.shape(mags)[1]):
+                mags[:,i] = mags[:,i] - filters[key][3]
+                S_AB[:,i] = 3631*F_F0_ugriz(mags[:,i], key)
     
         return S_AB
     
-    else:
-        print('this is only for SDSS ugriz luptitudes')
+    # YJHK 2MASS MAGS
+    elif mag_type == 'YJHK':
+        # assuming no SDSS->AB mag correction
+        print('not sure yet')
+    
+    # WISE MAGS    
+    elif mag_type == 'WISE':
+        # assuming WISE is AB mags
+        
+        # flux zero points
+        fw1,fw2,fw3,fw4 = 309.540,171.787,31.674,8.363
+    
+        zero_points = {
+                       '1':fw1,
+                       '2':fw2,
+                       '3':fw3,
+                       '4':fw4
+                       }
+    
+        def S_WISE(mags,key):
+            # Janksy flux
+            return zero_points[str(key)]*10**(mags/-2.5)
+        
+        # space for flux
+        S_AB = np.zeros_like(mags)
+        
+        for key in zero_points.keys():
+            for i in range(0, np.shape(mags)[1]):
+                S_AB[:,i] = S_WISE(mags[:,i],key)
+        
+        return S_AB
+        
+                
+PSF_flux = mag_to_flux(PSF_mag,'ugriz')
+
+u, g, r, i, z = c/354e-9, c/475e-9, c/622e-9, c/763e-9, c/905e-9 # freqs (SDSS ugriz)
+
+# WISE mags minus Vband extinction ?! INFRARED ?
+WISE_mags = [t_DR12_DR12_matches['W{}MAG'.format(i)] - ext_DR12 for i in range(1,5)] 
+WISE_mags = WISE_mags - (np.array([ext_DR12]))
+WISE_mags = np.array(WISE_mags).transpose()
+
+WISE_freqs = c/3.4e-6, c/4.6e-6, c/12e-6, c/22e-6
+
 
 #%%
 
