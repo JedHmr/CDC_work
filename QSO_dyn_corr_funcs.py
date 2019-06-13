@@ -46,7 +46,6 @@ coords_DR7 = SkyCoord(t_DR7['RA']*u.deg, t_DR7['DEC']*u.deg)
 coords_DR12 = SkyCoord(t_DR12['RA'], t_DR12['DEC'])
 coords_3XMM = SkyCoord(t_3XMM['SC_RA'], t_3XMM['SC_DEC'])
 
-
 def initial_match(coords_init, catalog, coords_errs_init, radius):
     """ 
         Initial match of radius k arcsec to reduce data set.
@@ -57,13 +56,18 @@ def initial_match(coords_init, catalog, coords_errs_init, radius):
                  coords_cat - matched objects in catalog
                  idx[] - indices in catalog of matches
     """
+    # indices into catalog of matches, their 2d sep, 3d sep
     idx, d2d, d3d = coords_init.match_to_catalog_sky(catalog)
     
+    # closest objects in radius of 2"
     mask = d2d < radius*u.arcsec
     
+    # selection of matches in supplied coordinates
     coords, coords_errs = coords_init[mask], coords_errs_init[idx[mask]]
     coords_cat, coords_cat_errs = catalog[idx[mask]], coords_errs_init[idx[mask]]
-
+    
+    # return coordinates of matches in coords_init, catalog and their errors
+    # as well as indices into catalog of matches < 2" away.
     return coords, coords_errs, coords_cat, coords_cat_errs, idx[mask]
 
 def radius_match(coords,coords_errs,cat_mask):
@@ -77,21 +81,24 @@ def radius_match(coords,coords_errs,cat_mask):
     cat_idx_matches = []
 
     for c, c_err in np.column_stack((coords,coords_errs)):
-
+        
+        # coordinate separation from every other coordinate within error radius.
         catalogmsk = c.separation(coords) < c_err*u.arcsec
         idxcatalog = np.where(catalogmsk)[0]
-    
+        
+        # indices that have separation within error radius in catalog
         catalog_idxmsk = cat_mask[idxcatalog]
-    
+        
         coords_matches.append(coords[idxcatalog])
         coords_matches_err.append(coords_errs[idxcatalog])
         cat_idx_matches.append(catalog_idxmsk)
         
-        print('coord: ',coords[idxcatalog])
-        print('count: ',len(coords_matches)) 
+        
+        print('coord: ', coords[idxcatalog])
+        print('count: ', len(coords_matches)) 
     
-    return np.concatenate(coords_matches), np.concatenate(coords_matches_err), np.concatenate(cat_idx_matches)
-
+    return SkyCoord(np.concatenate(coords_matches)), np.concatenate(coords_matches_err), np.concatenate(cat_idx_matches)
+    
 
 # inital matches with 2" radius
 
@@ -102,6 +109,11 @@ DR12_coords_init, DR12_coords_errs_init, XMMb_coords_init, XMMb_coords_errs_init
 DR7_matches, DR7_matches_poserr, XMM_DR7_idx_matches = radius_match(DR7_coords_init, DR7_coords_errs_init, cat_maskDR7)
 DR12_matches, DR12_matches_poserr, XMM_DR12_idx_matches = radius_match(DR12_coords_init, DR12_coords_errs_init, cat_maskDR12)
 
+# matched back into DR7,DR12 coords
+#idx_back, d2d_back, d3d_back = DR7_coords_init.match_to_catalog_sky(coords_DR7)
+idx_bk_DR7, d2d_bk_DR7, d3d_bk_DR7 = DR7_matches.match_to_catalog_sky(coords_DR7)
+idx_bk_DR12, d2d_bk_DR12, d3d_bk_DR12 = DR12_matches.match_to_catalog_sky(coords_DR12)
+
 # %% matches to tables + back matching
 
 # any point in having coordinates????? just use indexes out of functions ?
@@ -110,9 +122,9 @@ DR12_matches, DR12_matches_poserr, XMM_DR12_idx_matches = radius_match(DR12_coor
 t_3XMM_DR7_matches = t_3XMM[XMM_DR7_idx_matches[(DR7_matches_poserr < 1.5)]]
 t_3XMM_DR12_matches = t_3XMM[XMM_DR12_idx_matches[(DR12_matches_poserr < 1.5)]]
 
-# DR# table matching
-t_DR7_DR7_matches = t_DR7[t_DR7['RA'] == coords_DR7.ra.deg]
-t_DR12_DR12_matches = t_DR12[t_DR12['RA'] == coords_DR12.ra.deg]
+# DR7, DR12 back matching IMPLEMENT THIS IN FUNCTIONS
+t_DR7_DR7_matches = t_DR7[idx_bk_DR7]
+t_DR12_DR12_matches = t_DR12[idx_bk_DR12]
 
 print('Quasars: ', len(t_3XMM_DR7_matches) + len(t_3XMM_DR12_matches))
 
@@ -138,13 +150,13 @@ R_v, m = 3.1, sfdmap.SFDMap('C:/Users/jedhm/Documents/Projects/CDC_work/data/sfd
 # redshifts 'z' 
 z_DR7, z_DR12 = t_DR7_DR7_matches['REDSHIFT'], t_DR12_DR12_matches['Z_CIV']
 
-# objectwise galactic extinction (average with matched 3XMM coords?)
-ext_DR7 = R_v*m.ebv(coords_DR7) # R_v*E(B-V) = A_v
-ext_DR12 = R_v*m.ebv(coords_DR12) # R_v*E(B-V) = A_v
-
 # coord targets (refreshed)
 coords_DR7 = SkyCoord(t_DR7_DR7_matches['RA']*u.deg, t_DR7_DR7_matches['DEC']*u.deg)
 coords_DR12 = SkyCoord(t_DR12_DR12_matches['RA'], t_DR12_DR12_matches['DEC'])
+
+# objectwise galactic extinction (average with matched 3XMM coords?)
+ext_DR7 = R_v*m.ebv(coords_DR7) # R_v*E(B-V) = A_v
+ext_DR12 = R_v*m.ebv(coords_DR12) # R_v*E(B-V) = A_v
 
 # DR7 UV
 UV_DR7 = t_DR7_DR7_matches['LOGFNU2500A_ERGS_OBS']
@@ -152,7 +164,6 @@ UV_DR7 = t_DR7_DR7_matches['LOGFNU2500A_ERGS_OBS']
 # DR12 UV
 
 # add extinction to object mags CONVERT TO FLUXES ?
-#J, H, K = J + ext_DR12, H + ext_DR12, K + ext_DR12
 
 # ugriz DR12 mags minus columnwise extinction (v-band)
 ugriz_mags1 = t_DR12_DR12_matches['PSFMAG'] - (np.array([ext_DR12]*5)).transpose()
@@ -163,7 +174,6 @@ ugriz_mags2 = t_DR12_DR12_matches['PSFMAG'] - t_DR12_DR12_matches['EXTINCTION_RE
 WISE_mags = [t_DR12_DR12_matches['W{}MAG'.format(i)] - ext_DR12 for i in range(1,5)] 
 WISE_mags = WISE_mags - (np.array([ext_DR12]))
 WISE_mags = np.array(WISE_mags).transpose()
-
 
 def mag_to_flux(mags, mag_type):
     """
@@ -243,6 +253,7 @@ def mag_to_flux(mags, mag_type):
         return S_AB, WISE_freqs
         
 # Y,J,K,H DR12 flux, filter by SNR? 
+
 fY, fJ = t_DR12_DR12_matches['YFLUX'], t_DR12_DR12_matches['JFLUX']
 fH, fK = t_DR12_DR12_matches['HFLUX'], t_DR12_DR12_matches['KFLUX']
 
@@ -251,7 +262,7 @@ fH_err, fK_err = t_DR12_DR12_matches['HFLUX_ERR'], t_DR12_DR12_matches['KFLUX_ER
     
 flux_DR12_ugriz, ugriz_freqs = mag_to_flux(ugriz_mags2,'ugriz') 
 flux_DR12_WISE, WISE_freqs = mag_to_flux(WISE_mags,'WISE')
-flux_DR12_YJHK, YJHK_freqs = np.concatenate(np.concatenate(((fY,fJ,fH),fK))), mag_to_flux(0,'YJHK')
+flux_DR12_YJHK, YJHK_freqs = None,mag_to_flux(0,'YJHK')#np.concatenate(np.concatenate(((fY,fJ,fH),fK))), mag_to_flux(0,'YJHK')
 
 # Angstroms, direct from tables.
 ugriz_Ang = np.array([3540, 4750, 6220, 7630, 9050])
@@ -281,7 +292,6 @@ for i in range(0,4):
 #     ax.scatter(YJHK_freqs[j], flux_DR12_YJHK[:,i])
 # plt.show()
 
-
 def freqs_fluxes_match(freqs, fluxes):
     
     # initialise for freq of band, object flux in band pairings
@@ -303,10 +313,23 @@ def freqs_fluxes_match(freqs, fluxes):
     
     return flux_freqs_paired
 
-
 f_flux_ugriz = freqs_fluxes_match(ugriz_freqs, flux_DR12_ugriz)
 f_flux_YJHK = freqs_fluxes_match(YJHK_freqs, flux_DR12_YJHK)
 f_flux_WISE = freqs_fluxes_match(WISE_freqs, flux_DR12_WISE)
+
+fig, ax = plt.subplots()
+for i in range(0,len(ugriz_freqs)):
+    ax.scatter(f_flux_ugriz[:,:,i][:,0], f_flux_ugriz[:,:,i][:,1])
+for j in range(0,len(YJHK_freqs)):
+    ax.scatter(f_flux_YJHK[:,:,j][:,0], f_flux_YJHK[:,:,j][:,1])
+    ax.scatter(f_flux_WISE[:,:,j][:,0], f_flux_WISE[:,:,j][:,1])
+plt.show()
+ax.set_xlabel('$\nu$')
+ax.set_ylabel('$F_{\nu}$')
+
+plt.figure
+plt.scatter(f_flux_ugriz[:,:,0][:,0], f_flux_ugriz[:,:,0][:,1])
+plt.show()
     
 #%%
 
