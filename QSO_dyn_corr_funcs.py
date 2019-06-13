@@ -284,32 +284,31 @@ for i in range(0,4):
     for key in {'fY':fY,'fJ':fJ,'fH':fH,'fK':fK}.keys():
         flux_DR12_YJHK[:,i] = extinction.apply(YJHK_ext[i],{'fY':fY,'fJ':fJ,'fH':fH,'fK':fK}[key])
 
-# fig, ax = plt.subplots()
-# for i in range(0,4):
-#     ax.scatter(ugriz_freqs[i], flux_DR12_ugriz[:,i])
-# for j in range(0,3):
-#     ax.scatter(WISE_freqs[j], flux_DR12_WISE[:,i])
-#     ax.scatter(YJHK_freqs[j], flux_DR12_YJHK[:,i])
-# plt.show()
-
 def freqs_fluxes_match(freqs, fluxes):
     
     # initialise for freq of band, object flux in band pairings
-    flux_freqs_paired = np.zeros((len(fluxes), 2,len(freqs)))
+    # cube: rows as database, columns for freqs+fluxes of objects, depth for each freq. 
+    #flux_freqs_paired = np.zeros((len(np.shape(fluxes)[0]), 2,len(freqs)))
+    flux_freqs_paired = np.zeros((len(freqs), np.shape(fluxes)[0], 2))
     
     def freq_flux_attach(freq, flux_col): 
+        
         # match freq band value to each band flux
         freq_column_vec = np.zeros((len(flux_col),1))
-        freq_column_vec[:,0] = freq
+        
+        # set each row of column vector equal to the freq
+        freq_column_vec[:] = freq #freq_column_vec[:,0] = freq
+        
+        # matrix, column 1 = freqs, column 2 = matching fluxes
         return np.column_stack((freq_column_vec, flux_col))
     
-    # matched flux_columns and freqs (Fv,v)
+    # break collection of fluxes into separate columns.
     flux_cols = np.hsplit(fluxes,np.shape(fluxes)[1])
     
     # make each slice of freq,flux match for each freq val
     for freq, flux_col in zip(freqs, flux_cols):
         for i in range(0,len(freqs)):
-            flux_freqs_paired[:,:,i] = freq_flux_attach(freq,flux_col)
+            flux_freqs_paired[i,:,:] = freq_flux_attach(freq,flux_col)
     
     return flux_freqs_paired
 
@@ -319,16 +318,20 @@ f_flux_WISE = freqs_fluxes_match(WISE_freqs, flux_DR12_WISE)
 
 fig, ax = plt.subplots()
 for i in range(0,len(ugriz_freqs)):
-    ax.scatter(f_flux_ugriz[:,:,i][:,0], f_flux_ugriz[:,:,i][:,1])
+    ax.scatter(np.log(f_flux_ugriz[i,:,:][:,0]), np.log(f_flux_ugriz[i,:,:][:,1]))
 for j in range(0,len(YJHK_freqs)):
-    ax.scatter(f_flux_YJHK[:,:,j][:,0], f_flux_YJHK[:,:,j][:,1])
-    ax.scatter(f_flux_WISE[:,:,j][:,0], f_flux_WISE[:,:,j][:,1])
+    ax.scatter(np.log(f_flux_YJHK[j,:,:][:,0]), np.log(f_flux_YJHK[j,:,:][:,1]))
+    ax.scatter(np.log(f_flux_WISE[j,:,:][:,0]), np.log(f_flux_WISE[j,:,:][:,1]))
 plt.show()
 ax.set_xlabel('$\nu$')
 ax.set_ylabel('$F_{\nu}$')
 
 plt.figure
 plt.scatter(f_flux_ugriz[:,:,0][:,0], f_flux_ugriz[:,:,0][:,1])
+plt.show()
+
+plt.figure()
+plt.hist(f_flux_ugriz[:,:,0][:,0])
 plt.show()
     
 #%%
