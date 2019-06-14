@@ -1,7 +1,12 @@
 # %% initial
 
+# WISE: http://wise2.ipac.caltech.edu/docs/release/allsky/expsup/sec2_2a.html
+
+
+
 import os
 import numpy as np
+import itertools
 
 # https://github.com/kbarbary/sfdmap
 import sfdmap
@@ -32,16 +37,22 @@ t_DR12 = Table.read(path_DR12)
 path_3XMM = 'data/3XMM_DR7cat.fits'
 t_3XMM = Table.read(path_3XMM)
 
+# BAD QUASAR REMOVAL, SEE FLAG DESCRIPTIONS
 # REMOVE BAL_FLAG != 0 quasars () in SDSS DR7 AND radio loud quasars in SDSS DR7
 t_DR7 = t_DR7Q[(t_DR7Q['BAL_FLAG'] == 0) & (t_DR7Q['R_6CM_2500A'] < 10)]
-# DR12 BAL removal (removes ~ 10%)
-t_DR12 = t_DR12[(t_DR12['BAL_FLAG_VI'] == 0)]
+# DR12 BAL removal (removes ~ 10%) and GOOD detections flag
+t_DR12 = t_DR12[(t_DR12['BAL_FLAG_VI'] == 0) & (t_DR12['CC_FLAGS'] == '0000')]
+# DR12 Photometric quality
+#combos = [''.join(i) for i in itertools.product('AB', repeat = 4)] # all acceptable flags combos
+
+#t_DR12 = t_DR12[(t_DR12['PH_FLAG'] == 'BBBB')]
+
+
 
 # %% Dynamic match radius correlation
 
 # dynamic sep. constraints: 1arcsec sym. err. for SDSS cats. and object pos errs for 3XMM
 dpos1 = np.sqrt(np.square(np.array(t_3XMM['SC_POSERR'])) + np.square(np.full((499266), 0.0*u.arcsec)))
-
 coords_DR7 = SkyCoord(t_DR7['RA']*u.deg, t_DR7['DEC']*u.deg)
 coords_DR12 = SkyCoord(t_DR12['RA'], t_DR12['DEC'])
 coords_3XMM = SkyCoord(t_3XMM['SC_RA'], t_3XMM['SC_DEC'])
@@ -290,11 +301,11 @@ def freqs_fluxes_match(freqs, fluxes):
     # cube: rows as database, columns for freqs+fluxes of objects, depth for each freq. 
     #flux_freqs_paired = np.zeros((len(np.shape(fluxes)[0]), 2,len(freqs)))
     flux_freqs_paired = np.zeros((len(freqs), np.shape(fluxes)[0], 2))
-    
+    f_f_paired = []
     def freq_flux_attach(freq, flux_col): 
         
         # match freq band value to each band flux
-        freq_column_vec = np.zeros((len(flux_col),1))
+        freq_column_vec = np.zeros((np.shape(flux_col)[0],))
         
         # set each row of column vector equal to the freq
         freq_column_vec[:] = freq #freq_column_vec[:,0] = freq
@@ -302,37 +313,51 @@ def freqs_fluxes_match(freqs, fluxes):
         # matrix, column 1 = freqs, column 2 = matching fluxes
         return np.column_stack((freq_column_vec, flux_col))
     
-    # break collection of fluxes into separate columns.
-    flux_cols = np.hsplit(fluxes,np.shape(fluxes)[1])
+    flux_cols = np.hsplit(fluxes,len(freqs))
     
     # make each slice of freq,flux match for each freq val
     for freq, flux_col in zip(freqs, flux_cols):
-        for i in range(0,len(freqs)):
-            flux_freqs_paired[i,:,:] = freq_flux_attach(freq,flux_col)
+        f_flux_arr = freq_flux_attach(freq,flux_col)
+        f_f_paired.append(f_flux_arr)
+        # for i in range(0,len(freqs)):
+        #     flux_freqs_paired[i,:,:] = f_flux_arr
     
-    return flux_freqs_paired
+    #return flux_freqs_paired
+    return f_f_paired
 
 f_flux_ugriz = freqs_fluxes_match(ugriz_freqs, flux_DR12_ugriz)
 f_flux_YJHK = freqs_fluxes_match(YJHK_freqs, flux_DR12_YJHK)
 f_flux_WISE = freqs_fluxes_match(WISE_freqs, flux_DR12_WISE)
 
-fig, ax = plt.subplots()
-for i in range(0,len(ugriz_freqs)):
-    ax.scatter(np.log(f_flux_ugriz[i,:,:][:,0]), np.log(f_flux_ugriz[i,:,:][:,1]))
-for j in range(0,len(YJHK_freqs)):
-    ax.scatter(np.log(f_flux_YJHK[j,:,:][:,0]), np.log(f_flux_YJHK[j,:,:][:,1]))
-    ax.scatter(np.log(f_flux_WISE[j,:,:][:,0]), np.log(f_flux_WISE[j,:,:][:,1]))
-plt.show()
-ax.set_xlabel('$\nu$')
-ax.set_ylabel('$F_{\nu}$')
+# plot frequencies and their fluxes for all bands
 
-plt.figure
-plt.scatter(f_flux_ugriz[:,:,0][:,0], f_flux_ugriz[:,:,0][:,1])
-plt.show()
+# all frequencies in one array
+def freq_flux_extract(freq_flux_list, key):
+    
+    ff = {'freq':0,'flux':1}
+    
+    f_list = []
+    # place all freqs into one list
+    for i in range(0,len(freq_flux_list)):
+        f_list.append((freq_flux_list[i][:,ff[key]]))
+    
+    return f_list
+
+freqs_list = freq_flux_extract(f_flux_ugriz,'freq') + freq_flux_extract(f_flux_YJHK,'freq') + freq_flux_extract(f_flux_WISE,'freq')
+fluxes_list = freq_flux_extract(f_flux_ugriz,'flux') + freq_flux_extract(f_flux_YJHK,'flux') + freq_flux_extract(f_flux_WISE,'flux')
+
+freqs_list = [item for sublist in freqs_list for item in sublist]
+fluxes_list = [item for sublist in fluxes_list for item in sublist]
 
 plt.figure()
-plt.hist(f_flux_ugriz[:,:,0][:,0])
-plt.show()
-    
-#%%
+plt.scatter(np.log10(freqs_list),np.log10(fluxes_list))
 
+#plt.ylim(0.9*np.min(flux_DR12_ugriz),1.1*np.max(flux_DR12_ugriz))
+plt.show()
+
+x = np.array(np.log10(freqs_list))
+y = np.array(np.log10(fluxes_list))
+np.polyfit(x,y,1)
+
+
+#%%
