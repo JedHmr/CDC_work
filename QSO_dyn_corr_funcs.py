@@ -169,6 +169,10 @@ coords_DR12 = SkyCoord(t_DR12_DR12_matches['RA'], t_DR12_DR12_matches['DEC'])
 ext_DR7 = R_v*m.ebv(coords_DR7) # R_v*E(B-V) = A_v
 ext_DR12 = R_v*m.ebv(coords_DR12) # R_v*E(B-V) = A_v
 
+# %% DR7 UV
+
+UV_DR7 = t_DR7_DR7_matches['LOGFNU2500A_ERGS_OBS']
+
 # %% DR12 UV FLUX
 
 # functions 
@@ -201,7 +205,7 @@ def mag_to_flux(mags, mag_type):
     
         # function for asinh mag to f/f_0 (fraction of AB zeropoint flux density)
         def F_F0_ugriz(mags,key):
-            return np.sinh(((np.log(10)*mags)/(-2.5) - np.log(filters[key][1])))
+            return np.sinh( ((np.log(10)/-2.5)*mags - np.log(filters[key][1])))*2*filters[key][1]
         
         # space for flux
         S_AB = np.zeros_like(mags)
@@ -210,8 +214,9 @@ def mag_to_flux(mags, mag_type):
         for key in filters.keys():
             for i in range(0, np.shape(mags)[1]):
                 # https://www.sdss.org/dr12/algorithms/fluxcal/
+                # 3631 Jy/nanomag
                 mags[:,i] = mags[:,i] - filters[key][3]
-                S_AB[:,i] = 10**(-26)*3631*F_F0_ugriz(mags[:,i], key)
+                S_AB[:,i] = 1e-26*3631*F_F0_ugriz(mags[:,i], key)
     
         return S_AB, ugriz_freqs
     
@@ -237,7 +242,7 @@ def mag_to_flux(mags, mag_type):
                        }
     
         def S_WISE(mags,key):
-            # Janksy flux * 10^-26 = Wm^-2Hz^-1
+            # Janksy flux * 10^-26 = Flux Wm^-2Hz^-1
             return 10**(-26)*zero_points[str(key)]*10**(mags/-2.5)
         
         # space for flux
@@ -411,7 +416,7 @@ def object_all_bands(ff_arr_list):
 ff_arr_list = [f_flux_ugriz,f_flux_WISE]
 
 # ordered lists of all frequencies and fluxes
-freqs_list = freq_flux_extract(f_flux_ugriz,'freq')  + freq_flux_extract(f_flux_WISE,'freq')
+freqs_list = freq_flux_extract(f_flux_ugriz,'freq') + freq_flux_extract(f_flux_WISE,'freq')
 fluxes_list = freq_flux_extract(f_flux_ugriz,'flux') + freq_flux_extract(f_flux_WISE,'flux')
 
 # object wise arrays of effective freqs/fluxes
@@ -419,27 +424,30 @@ objects_ugriz, objects_WISE = object_all_bands(ff_arr_list)
 
 # create lists for an objects freqs,fluxes across all bands
 
+# alternative ugriz fluxes
+#ugriz_fluxes_alt = freqs_fluxes_match(ugriz_freqs,extinction.apply(ugriz_ext,ugriz_mags*3631*10**(-26)))
+
+#freqs_list = freq_flux_extract(ugriz_fluxes_alt,'freq') + freq_flux_extract(f_flux_WISE,'freq')
+#fluxes_list = freq_flux_extract(ugriz_fluxes_alt,'flux') + freq_flux_extract(f_flux_WISE,'flux')
+
 plt.figure()
 for i in range(0,len(objects_ugriz)):
     
-    object_fluxes = [np.log10(x) for x in objects_ugriz[i][:,1]] + [np.log10(x) for x in objects_WISE[i][:,1]]
-    object_freqs = [np.log10(x) for x in objects_ugriz[i][:,0]] + [np.log10(x) for x in objects_WISE[i][:,0]]
+    object_fluxes1 = [np.log10(x) for x in objects_ugriz[i][:,1]] 
+    object_fluxes2 = [np.log10(x) for x in objects_WISE[i][:,1]]
     
-    plt.scatter(object_freqs,object_fluxes)
+    object_freqs1 = [np.log10(x) for x in objects_ugriz[i][:,0]] 
+    object_freqs2 = [np.log10(x) for x in objects_WISE[i][:,0]]
+    
+    plt.plot(object_freqs1,object_fluxes1,'o')
+    plt.plot(object_freqs2,object_fluxes2,'x')
     print(i)
-    
 plt.show()
 
+#plt.figure()
+#plt.scatter(np.log10(freqs_list),np.log10(fluxes_list))
+#plt.show()
 
-plt.figure()
-plt.scatter(np.log10(objects_ugriz[0][:,0]),np.log10(objects_ugriz[0][:,1]))
-plt.scatter(np.log10(objects_WISE[0][:,0]),np.log10(objects_WISE[0][:,1]))
-plt.show()
-
-
-# %% DR7 UV
-
-UV_DR7 = t_DR7_DR7_matches['LOGFNU2500A_ERGS_OBS']
 
 
 
