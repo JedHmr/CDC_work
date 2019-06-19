@@ -7,6 +7,7 @@
 import os
 import numpy as np
 import itertools
+import matplotlib.pyplot as plt
 
 # https://github.com/kbarbary/sfdmap
 import sfdmap
@@ -22,6 +23,9 @@ from astropy.table import Table
 from astropy.coordinates import match_coordinates_sky
 
 from astroquery.irsa_dust import IrsaDust
+
+import matplotlib as mpl
+mpl.rcParams.update(mpl.rcParamsDefault)
 
 os.path.abspath(os.curdir)
 os.chdir("..")
@@ -171,7 +175,7 @@ ext_DR12 = R_v*m.ebv(coords_DR12) # R_v*E(B-V) = A_v
 
 # %% DR7 UV
 
-UV_DR7 = t_DR7_DR7_matches['LOGFNU2500A_ERGS_OBS']
+UV_DR7 = t_DR7_DR7_matches['LOGFNU2500A_ERGS_OBS']/z_DR7
 
 # %% DR12 UV FLUX
 
@@ -297,6 +301,7 @@ def freqs_fluxes_match(freqs, fluxes):
 
 def freq_flux_extract(freq_flux_list, key):
     
+    
     ff = {'freq':0,'flux':1}
     
     f_list = []
@@ -306,14 +311,27 @@ def freq_flux_extract(freq_flux_list, key):
     
     return f_list
 
+
+
+
+
+
+# ugriz
+
+# ugriz
 ugriz_mags = t_DR12_DR12_matches['PSFMAG']
+ugriz_mags_err = t_DR12_DR12_matches['ERR_PSFMAG']
+
 # ugriz fluxes, effective freqs (mid band freqs)
-flux_DR12_ugriz, ugriz_freqs = mag_to_flux(ugriz_mags2,'ugriz')
+flux_DR12_ugriz, ugriz_freqs = mag_to_flux(ugriz_mags,'ugriz')
+flux_DR12_ugriz_errs, ugriz_freqs = mag_to_flux(ugriz_mags,'ugriz')
 # ugriz wavelengths
 ugriz_Ang = np.array([3540, 4750, 6220, 7630, 9050])
 # ugriz extinction and application to flux 
 ugriz_ext = extinction.fm07(ugriz_Ang, 1.0)
 flux_DR12_ugriz = extinction.apply(ugriz_ext,flux_DR12_ugriz)
+# same but to errors 
+flux_DR12_ugriz_errs = extinction.apply(ugriz_ext,flux_DR12_ugriz_errs)
 
 # frequencies matched to each flux value
 f_flux_ugriz = freqs_fluxes_match(ugriz_freqs, flux_DR12_ugriz)
@@ -321,18 +339,23 @@ f_flux_ugriz = freqs_fluxes_match(ugriz_freqs, flux_DR12_ugriz)
 
 # WISE
 # WISE mags minus Vband extinction ?! INFRARED ?
-WISE_mags = [t_DR12_DR12_matches['W{}MAG'.format(i)] - ext_DR12 for i in range(1,5)] 
-WISE_mags = WISE_mags - (np.array([ext_DR12]))
+WISE_mags = [t_DR12_DR12_matches['W{}MAG'.format(i)] for i in range(1,5)] #[t_DR12_DR12_matches['W{}MAG'.format(i)] - ext_DR12 for i in range(1,5)] 
 WISE_mags = np.array(WISE_mags).transpose()
+# mag errs
+WISE_mags_errs = [t_DR12_DR12_matches['ERR_W{}MAG'.format(i)] for i in range(1,5)]
+WISE_mags_errs = np.array(WISE_mags_errs).transpose()
 
 # WISE fluxes and effective freqs
 flux_DR12_WISE, WISE_freqs = mag_to_flux(WISE_mags,'WISE')
+flux_DR12_WISE_errs, WISE_freqs = mag_to_flux(WISE_mags_errs,'WISE')
 # WISE wavelengths
 WISE_Ang = np.array([34000, 46000, 120000, 220000])
 # WISE exinction for effective freqs
 WISE_ext = extinction.fm07(WISE_Ang, 1.0)
 # apply extinction to WISE fluxes
 flux_DR12_WISE = extinction.apply(WISE_ext,flux_DR12_WISE)
+# same but to errs
+flux_DR12_WISE_errs = extinction.apply(WISE_ext,flux_DR12_WISE_errs)
 
 # frequencies mathced to flux values
 f_flux_WISE = freqs_fluxes_match(WISE_freqs, flux_DR12_WISE)
@@ -368,7 +391,7 @@ for i in range(0,4):
 # DR7 UV
 
 # matched freqs/fluxes
-f_flux_YJHK = freqs_fluxes_match(YJHK_freqs, flux_DR12_YJHK)
+#f_flux_YJHK = freqs_fluxes_match(YJHK_freqs, flux_DR12_YJHK)
 
 # %% format flux/freq data in bands to plot 
 
@@ -422,46 +445,81 @@ fluxes_list = freq_flux_extract(f_flux_ugriz,'flux') + freq_flux_extract(f_flux_
 # object wise arrays of effective freqs/fluxes
 objects_ugriz, objects_WISE = object_all_bands(ff_arr_list)
 
-# create lists for an objects freqs,fluxes across all bands
+# object-wise arrays: f,flux,flux_err for ugriz/WISE 
+test_arr1 = np.concatenate((objects_ugriz, flux_DR12_ugriz_errs.reshape(4806,5,1)), axis=2)
+test_arr2 = np.concatenate((objects_WISE, flux_DR12_WISE_errs.reshape(4806,4,1)), axis=2)
 
-# alternative ugriz fluxes
-#ugriz_fluxes_alt = freqs_fluxes_match(ugriz_freqs,extinction.apply(ugriz_ext,ugriz_mags*3631*10**(-26)))
+# set values of (f,flux) with wrong errors to nan.
+test_arr1[(test_arr1[:,:,2] == np.inf) & (np.log10(test_arr1[:,:,1]) > -24)] = np.nan
+test_arr2[(test_arr2[:,:,2] == np.inf) & (np.log10(test_arr2[:,:,1]) > -24)] = np.nan
 
-#freqs_list = freq_flux_extract(ugriz_fluxes_alt,'freq') + freq_flux_extract(f_flux_WISE,'freq')
-#fluxes_list = freq_flux_extract(ugriz_fluxes_alt,'flux') + freq_flux_extract(f_flux_WISE,'flux')
+#array of all bands for each object
+all_arr = np.concatenate((test_arr1,test_arr2),axis=1)
+all_arr[all_arr[:,:,2] == np.inf] = np.nan
+all_arr[np.log10(all_arr[:,:,1]) > -24] = np.nan
+all_arr = np.ma.array(all_arr, mask=np.isnan(all_arr))
 
-plt.figure()
-for i in range(0,len(objects_ugriz)):
+# params = np.zeros(len()
+# for i in range(0,4806):
+#     plt.scatter(np.log10(all_arr[i][:,0]),np.log10(all_arr[i][:,1]))
+#     # plt.errorbar(np.log10(all_arr[i][:,0]),
+#     #             np.log10(all_arr[i][:,1]),
+#     #             np.log10(all_arr[i][:,2]),
+#     #             fmt='none',
+#     #             marker='o')
+#     if all_arr[i][:,2].any() != np.nan:
+        
+#         params += np.polyfit(
+#                 np.log10(all_arr[i][:,0]),
+#                 np.log10(all_arr[i][:,1]),
+#                 w=np.log10(all_arr[i][:,2]),
+#                 deg=1
+#                 )
+#     print(i)
+        
+# plt.grid(True)
+# plt.show()
+# params=params/4806
+# print(params[0]/4806,params[1]/4806)
+
+
+def F_UV_powerlaw(f_f_err_arr,lam):
+    """
+    Parameters
+    ----------
+    f_f_err_arr : TYPE
+        Array of object (freq,flux,fluxerr).
+
+    lam
+        wavelength of radiation for flux required. in ANGS
+    Returns
+    -------
+    log10 F_UV flux
+    """
+    c=3e8
+    freq_lam = c/(lam*1e-10)
     
-    object_fluxes1 = [np.log10(x) for x in objects_ugriz[i][:,1]] 
-    object_fluxes2 = [np.log10(x) for x in objects_WISE[i][:,1]]
+    F_UV = np.zeros(len(all_arr),)
+    params = np.zeros((len(f_f_err_arr),2))
     
-    object_freqs1 = [np.log10(x) for x in objects_ugriz[i][:,0]] 
-    object_freqs2 = [np.log10(x) for x in objects_WISE[i][:,0]]
+    for i in range(0,len(f_f_err_arr)):
+        
+        #optional plot 
+        #plt.scatter(np.log10(all_arr[i][:,0]),np.log10(all_arr[i][:,1]))
+        
+        params[i,:] = np.polyfit(
+                x=np.log10(f_f_err_arr[i][:,0]),
+                y=np.log10(f_f_err_arr[i][:,1]),
+                w=np.log10(f_f_err_arr[i][:,2]),
+                deg=1
+                )
     
-    plt.plot(object_freqs1,object_fluxes1,'o')
-    plt.plot(object_freqs2,object_fluxes2,'x')
-    print(i)
-plt.show()
+    
+        F_UV[i] = np.log10(freq_lam)*params[i][0] + params[i][1]
+    
+    return F_UV    
 
-#plt.figure()
-#plt.scatter(np.log10(freqs_list),np.log10(fluxes_list))
-#plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+F_UV_DR12 = F_UV_powerlaw(all_arr, 2500)
 
 
 
