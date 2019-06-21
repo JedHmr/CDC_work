@@ -49,10 +49,7 @@ t_DR7 = t_DR7Q[(t_DR7Q['BAL_FLAG'] == 0) & (t_DR7Q['R_6CM_2500A'] < 10)]
 t_DR12 = t_DR12[(t_DR12['BAL_FLAG_VI'] == 0) & (t_DR12['CC_FLAGS'] == '0000')]
 # DR12 Photometric quality
 #combos = [''.join(i) for i in itertools.product('AB', repeat = 4)] # all acceptable flags combos
-
 #t_DR12 = t_DR12[(t_DR12['PH_FLAG'] == 'BBBB')]
-
-
 
 # %% Dynamic match radius correlation
 
@@ -182,23 +179,6 @@ coords_DR12 = SkyCoord(t_DR12_DR12_matches['RA'], t_DR12_DR12_matches['DEC'])
 ext_DR7 = R_v*m.ebv(coords_DR7) # R_v*E(B-V) = A_v
 ext_DR12 = R_v*m.ebv(coords_DR12) # R_v*E(B-V) = A_v
 
-# %% DR7 UV
-
-F_UV_DR7 = t_DR7_DR7_matches['LOGFNU2500A_ERGS_OBS'] # in log10(erg/cm^2/s)
-
-cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
-
-DL_DR7 = cosmo.luminosity_distance(z_DR7)
-DL_DR7 = DL_DR7.to(u.m)
-
-L_UV_DR7 = (10**(F_UV_DR7)/(1+z_DR7))*(4*np.pi*np.square(DL_DR7.value))
-
-# %% L_X DR7 
-
-FX_DR7 = 0.001*(FX_soft_DR7 + FX_hard_DR7) # ergs to J conversion factor
-
-LX_DR7 = (FX_DR7/(1+z_DR7))*(4*np.pi*np.square(DL_DR7.value))
-
 # %% DR12 UV
 
 # functions 
@@ -268,7 +248,7 @@ def mag_to_flux(mags, mag_type):
                        }
     
         def S_WISE(mags,key):
-            # Janksy flux * 10^-26 = Flux Wm^-2Hz^-1
+            # Janksy flux * 10^-26 = Flux Wm^-2     ?Hz^-1
             return 10**(-26)*3631*zero_points[str(key)]*10**(mags/-2.5)
         
         # space for flux
@@ -279,13 +259,6 @@ def mag_to_flux(mags, mag_type):
                 S_AB[:,i] = S_WISE(mags[:,i],key)
         
         return S_AB, WISE_freqs
-
-
-
-
-
-
-
 
 
 # UGRIZ
@@ -332,13 +305,6 @@ def freq_flux_extract(freq_flux_list, key):
         f_list.append((freq_flux_list[i][:,ff[key]]))
     
     return f_list
-
-
-
-
-
-
-# ugriz
 
 # ugriz
 
@@ -456,10 +422,6 @@ def object_all_bands(ff_arr_list):
 
 ff_arr_list = [f_flux_ugriz,f_flux_WISE]
 
-# ordered lists of all frequencies and fluxes
-freqs_list = freq_flux_extract(f_flux_ugriz,'freq') + freq_flux_extract(f_flux_WISE,'freq')
-fluxes_list = freq_flux_extract(f_flux_ugriz,'flux') + freq_flux_extract(f_flux_WISE,'flux')
-
 # object wise arrays of effective freqs/fluxes
 objects_ugriz, objects_WISE = object_all_bands(ff_arr_list)
 
@@ -476,6 +438,10 @@ all_arr = np.concatenate((test_arr1,test_arr2),axis=1)
 all_arr[all_arr[:,:,2] == np.inf] = np.nan
 all_arr[np.log10(all_arr[:,:,1]) > -24] = np.nan
 all_arr = np.ma.array(all_arr, mask=np.isnan(all_arr))
+
+# ergs to J
+#all_arr[:,:,1], all_arr[:,:,2] = 0.001*all_arr[:,:,1], 0.001*all_arr[:,:,2]
+
 
 
 def F_UV_powerlaw(f_f_err_arr,lam):
@@ -507,8 +473,8 @@ def F_UV_powerlaw(f_f_err_arr,lam):
             # fit each object across bands for blueshifted flux
             params[i,:] = np.polyfit(
                     x=np.log10(f_f_err_arr[i][:,0]),
-                    y=np.log10(f_f_err_arr[i][:,1]/z_DR12[i]),
-                    w=np.log10(f_f_err_arr[i][:,2]/z_DR12[i]),
+                    y=np.log10(f_f_err_arr[i][:,1]),#/z_DR12[i]),
+                    w=np.log10(f_f_err_arr[i][:,2]),#/z_DR12[i]),
                     deg=1
                     )
             
@@ -533,12 +499,7 @@ def nu_F_nu(f_f_err_arr):
 # z_DR12_arr = np.array(np.tile(z_DR12.transpose(),(9,1)))
 
 # all_arr[:,:,1], all_arr[:,:,2] = np.divide(all_arr[:,:,1],z_DR12_arr.transpose()), all_arr[:,:,1]/z_DR12_arr
-
-
-
-
-# function without logs for 1+z division?
-
+    
 # log10 DR12 UV flux
 F_UV_DR12 = F_UV_powerlaw(all_arr, 2500)
 
@@ -547,11 +508,9 @@ cosmo = FlatLambdaCDM(H0=70,Om0=0.3)
 DL_DR12 = cosmo.luminosity_distance(z_DR12)
 DL_DR12 = DL_DR12.to(u.m)
 
-#DL_DR12 = np.ma.array(D_L, mask=np.isnan(D_L))
+L_UV_DR12 = (10**(F_UV_DR12)/(1+z_DR12))*(4*np.pi*np.square(DL_DR12.value))
 
-#D_L = 
-
-L_UV_DR12 = (F_UV_DR12/(1+z_DR12))*(4*np.pi*np.square(DL_DR12))
+L_UV_DR12_f = L_UV_DR12/(c/(2500e-10))
 
 # %% L_X DR12 
 
@@ -560,19 +519,41 @@ FX_DR12 = 0.001*(FX_soft_DR12 + FX_hard_DR12) # 0.001 is erg/cm^2 to J/m^2
 # 0.001 erg/cm^2 -> J/m^2
 LX_DR12 = (FX_DR12/(1+z_DR12))*(4*np.pi*np.square(DL_DR12.value))
 
+# %% DR7 UV
+
+F_UV_DR7 = t_DR7_DR7_matches['LOGFNU2500A_ERGS_OBS'] # in log10(erg/cm^2/s)
+F_UV_DR7[ F_UV_DR7 == 0] = np.nan
+F_UV_DR7 = np.ma.array(F_UV_DR7, mask=np.isnan(F_UV_DR7))
+
+cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
+
+DL_DR7 = cosmo.luminosity_distance(z_DR7)
+DL_DR7 = DL_DR7.to(u.m)
+
+L_UV_DR7 = (0.001*10**(F_UV_DR7)/(1+z_DR7))*(4*np.pi*np.square(DL_DR7.value)) # ergs/J conversion factor
+
+# %% L_X DR7 
+
+FX_DR7 = 0.001*(FX_soft_DR7 + FX_hard_DR7) # ergs to J conversion factor
+
+LX_DR7 = (FX_DR7/(1+z_DR7))*(4*np.pi*np.square(DL_DR7.value))
+
 
 plt.figure()
 plt.scatter(np.log10(all_arr[:,:,0]),np.log10(all_arr[:,:,0]*all_arr[:,:,1]))
 plt.xlabel('$\nu$')
 plt.ylabel('$\nuF_{\nu}$')
+plt.grid(True)
 plt.show()
 
 
-
-
 plt.figure()
-plt.plot(np.log10(L_UV_DR7),np.log10(LX_DR7),'x')
-plt.plot(np.log10(L_UV_DR12),np.log10(LX_DR12),'x')
+plt.plot(np.log10(L_UV_DR7/(c/(2500e-10))),np.log10(LX_DR7/1.4392803598200896e+18),'o')
+plt.plot(np.log10(L_UV_DR12/(c/(2500e-10))),np.log10(LX_DR12/1.4392803598200896e+18),'x')
+#plt.xlim(23,29)
+plt.xlabel('log10(F_UV)')
+plt.ylabel('log10(F_X)')
+plt.grid(True)
 
 plt.show()
 
