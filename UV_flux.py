@@ -325,7 +325,7 @@ def F_UV_powerlaw(f_f_err_arr,lam):
     log10 F_UV flux
     """
     c=3e8
-    freq_lam = c/(lam*1e-10)
+    freq_lam = c/(lam*1e-10) # angstrom wavelength to frequency
     
     F_UV = np.zeros(len(all_arr),)
     vF_v = np.zeros(len(all_arr),)
@@ -370,8 +370,6 @@ DL_DR12 = DL_DR12.to(u.cm)
 
 L_UV_DR12 = (10**(F_UV_DR12)/(1+z_DR12))*(4*np.pi*np.square(DL_DR12.value))
 
-L_UV_DR12_f = L_UV_DR12/(c/(2500e-10))
-
 # %% DR7 UV
 
 F_UV_DR7 = t_DR7_DR7_matches['LOGFNU2500A_ERGS_OBS'] # in log10(erg/cm^2/s)
@@ -383,7 +381,7 @@ cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 DL_DR7 = cosmo.luminosity_distance(z_DR7)
 DL_DR7 = DL_DR7.to(u.cm)
 
-L_UV_DR7 = (10**(F_UV_DR7)/(1+z_DR7))*(4*np.pi*np.square(DL_DR7.value)) # ergs/J conversion factor
+L_UV_DR7 = (10**(F_UV_DR7)/(1+z_DR7))*(4*np.pi*np.square(DL_DR7.value)) 
 
 
 plt.figure()
